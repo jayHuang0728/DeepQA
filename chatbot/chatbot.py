@@ -688,5 +688,3 @@ class Chatbot:
         else:
             print('Warning: Error in the device name: {}, use the default device'.format(self.args.device))
             return None
-
-
