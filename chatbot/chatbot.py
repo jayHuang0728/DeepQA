@@ -1,25 +1,18 @@
-# Copyright 2015 Conchylicultor. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
 
-"""
-Main script. See README.md for more information
+# coding: utf-8
 
-Use python 3
-"""
+# This code is from https://github.com/escuccim/DeepQA which was forked from https://github.com/Conchylicultor/DeepQA. This notebook contains the ChatBot class and imports functions from other .py files. The original code has been edited and made to work in a notebook rather than the command line. 
+# 
+# Many of the parameters have been changed to allow this to be trained on a laptop GPU in a reasonable amount of time:
+#  * The embedding size was decreased from 100 to 56
+#  * The max output length was set to 8
+#  * The filter vocab parameters have also been changed.
+#  
+# An attention mechanism was also added to the model.
 
-import argparse  # Command line parsing
+# In[1]:
+
+
 import configparser  # Saving the models parameters
 import datetime  # Chronometer
 import os  # Files management
@@ -33,9 +26,13 @@ from tensorflow.python import debug as tf_debug
 from chatbot.textdata import TextData
 from chatbot.model import Model
 
+
+# In[2]:
+
+
 # since we aren't running this on the command line create an args object with default values
 class Args():
-    def __init__(self):
+    def __init__(self, args=None):
         self.test = None
         self.createDataset = False
         self.playDataset = False
@@ -73,7 +70,11 @@ class Args():
         self.batchSize = 196
         self.learningRate = 0.002
         self.dropout = 0.9
-        
+
+
+# In[3]:
+
+
 # Copyright 2015 Conchylicultor. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -151,53 +152,18 @@ class Chatbot:
         self.SENTENCES_PREFIX = ['Q: ', 'A: ']
 
     @staticmethod
-    def parseArgs(args):
-        args = Args()
+    def parseArgs(pargs):
+        args = Args(pargs)
+            
+        if pargs is not None and "test" in pargs:
+            args.test = pargs['test']
+        else:
+            args.test = None
+            
         return args
-
-    def main(self, args=None):
-        """
-        Launch the training and/or the interactive mode
-        """
-        print('Welcome to DeepQA v0.1 !')
-        print()
-        print('TensorFlow detected: v{}'.format(tf.__version__))
-
-        # General initialisation
-
-        self.args = self.parseArgs(args)
-
-        if not self.args.rootDir:
-            self.args.rootDir = os.getcwd()  # Use the current working directory
-
-        #tf.logging.set_verbosity(tf.logging.INFO) # DEBUG, INFO, WARN (default), ERROR, or FATAL
-
-        self.loadModelParams()  # Update the self.modelDir and self.globStep, for now, not used when loading Model (but need to be called before _getSummaryName)
-
-        self.textData = TextData(self.args)
-        # TODO: Add a mode where we can force the input of the decoder // Try to visualize the predictions for
-        # each word of the vocabulary / decoder input
-        # TODO: For now, the model are trained for a specific dataset (because of the maxLength which define the
-        # vocabulary). Add a compatibility mode which allow to launch a model trained on a different vocabulary (
-        # remap the word2id/id2word variables).
-        if self.args.createDataset:
-            print('Dataset created! Thanks for using this program')
-            return  # No need to go further
-
-        # Prepare the model
-        with tf.device(self.getDevice()):
-            self.model = Model(self.args, self.textData)
-
-        # Saver/summaries
-        self.writer = tf.summary.FileWriter(self._getSummaryName())
-        self.saver = tf.train.Saver(max_to_keep=200)
-
-        # TODO: Fixed seed (WARNING: If dataset shuffling, make sure to do that after saving the
-        # dataset, otherwise, all which cames after the shuffling won't be replicable when
-        # reloading the dataset). How to restore the seed after loading ??
-        # Also fix seed for random.shuffle (does it works globally for all files ?)
-
-        # Running session
+    
+    def start_session(self):
+         # Running session
         self.sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True,  # Allows backup device for non GPU-available operations (when forcing GPU)
             log_device_placement=False)  # Too verbose ?
@@ -217,6 +183,53 @@ class Chatbot:
         # Initialize embeddings with pre-trained word2vec vectors
         if self.args.initEmbeddings:
             self.loadEmbedding(self.sess)
+    
+    def load_model(self):
+        self.loadModelParams()  # Update the self.modelDir and self.globStep, for now, not used when loading Model (but need to be called before _getSummaryName)
+
+        self.textData = TextData(self.args)
+        # TODO: Add a mode where we can force the input of the decoder // Try to visualize the predictions for
+        # each word of the vocabulary / decoder input
+        # TODO: For now, the model are trained for a specific dataset (because of the maxLength which define the
+        # vocabulary). Add a compatibility mode which allow to launch a model trained on a different vocabulary (
+        # remap the word2id/id2word variables).
+        if self.args.createDataset:
+            print('Dataset created! Thanks for using this program')
+            return  # No need to go further
+
+        # Prepare the model
+        with tf.device(self.getDevice()):
+            self.model = Model(self.args, self.textData)
+    
+    def main(self, pargs=None):
+        """
+        Launch the training and/or the interactive mode
+        """
+        print('Welcome to DeepQA v0.1 !')
+        print()
+        print('TensorFlow detected: v{}'.format(tf.__version__))
+
+        # General initialisation
+
+        self.args = self.parseArgs(pargs)
+
+        if not self.args.rootDir:
+            self.args.rootDir = os.getcwd()  # Use the current working directory
+
+        #tf.logging.set_verbosity(tf.logging.INFO) # DEBUG, INFO, WARN (default), ERROR, or FATAL
+
+        self.load_model()
+
+        # Saver/summaries
+        self.writer = tf.summary.FileWriter(self._getSummaryName())
+        self.saver = tf.train.Saver(max_to_keep=200)
+
+        # TODO: Fixed seed (WARNING: If dataset shuffling, make sure to do that after saving the
+        # dataset, otherwise, all which cames after the shuffling won't be replicable when
+        # reloading the dataset). How to restore the seed after loading ??
+        # Also fix seed for random.shuffle (does it works globally for all files ?)
+
+        self.start_session()
 
         if self.args.test:
             if self.args.test == Chatbot.TestMode.INTERACTIVE:
@@ -243,7 +256,6 @@ class Chatbot:
         """
 
         # Specific training dependent loading
-
         self.textData.makeLighter(self.args.ratioDataset)  # Limit the number of training samples
 
         mergedSummaries = tf.summary.merge_all()  # Define the summary operator (Warning: Won't appear on the tensorboard graph)
@@ -251,7 +263,6 @@ class Chatbot:
             self.writer.add_graph(sess.graph)  # First time only
 
         # If restoring a model, restore the progression bar ? and current batch ?
-
         print('Start training (press Ctrl+C to save and exit)...')
 
         try:  # If the user exit while training, we still try to save the model
@@ -361,7 +372,10 @@ class Chatbot:
                 print(self.textData.sequence2str(answer))
 
             print()
-
+    
+    def get_response(self, question):
+        return self.daemonPredict(question)
+    
     def singlePredict(self, question, questionSeq=None):
         """ Predict the sentence
         Args:
@@ -674,3 +688,5 @@ class Chatbot:
         else:
             print('Warning: Error in the device name: {}, use the default device'.format(self.args.device))
             return None
+
+
