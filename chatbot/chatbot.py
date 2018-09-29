@@ -65,7 +65,7 @@ class Args():
         self.embeddingSource = "GoogleNews-vectors-negative300.bin"
         
         # training options
-        self.numEpochs = 5
+        self.numEpochs = 2
         self.saveEvery = 2000
         self.batchSize = 196
         self.learningRate = 0.002
