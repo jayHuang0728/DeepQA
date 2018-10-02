@@ -1,14 +1,13 @@
 
 # coding: utf-8
 
-# This code is from https://github.com/escuccim/DeepQA which was forked from https://github.com/Conchylicultor/DeepQA. This notebook contains the ChatBot class and imports functions from other .py files. The original code has been edited and made to work in a notebook rather than the command line. 
+# This code is from https://github.com/escuccim/DeepQA which was forked from https://github.com/Conchylicultor/DeepQA. This notebook contains the ChatBot class and imports functions from other .py files. The original code has been edited and made to work in a notebook rather than the command line. The code has also been modified to work with the code from the assignment.
 # 
-# Many of the parameters have been changed to allow this to be trained on a laptop GPU in a reasonable amount of time:
-#  * The embedding size was decreased from 100 to 56
-#  * The max output length was set to 8
-#  * The filter vocab parameters have also been changed.
-#  
-# An attention mechanism was also added to the model.
+# Many of the parameters have been changed to allow this to be trained on a laptop GPU in a reasonable amount of time. I tried various combinations of parameters and training on different datasets:
+# * Training on opensubs took about 7-8 hours per epoch on my laptop and after 3 days of training the model only replied "what?" and "i'm sorry."
+# * Training on the cornell dataset allowed us to use a larger embedding size, a larger vocabulary and a larger input size and took about 1.5 hours per epoch.
+# 
+# The model has been trained for about 20 epochs, in batches of 3 epochs at a time. Only the last 3 epochs of training are shown below.
 
 # In[1]:
 
@@ -48,11 +47,11 @@ class Args():
         self.seed = 0
         
         # dataset options
-        self.corpus = "opensubs"
+        self.corpus = "cornell" #"cornell"
         self.datasetTag = ""
         self.ratioDataset = 1.0
-        self.maxLength = 8
-        self.filterVocab = 20
+        self.maxLength = 15
+        self.filterVocab = 15
         self.skipLines = False
         self.vocabularySize = 50000
         
@@ -61,14 +60,14 @@ class Args():
         self.numLayers = 2
         self.softmaxSamples = 0
         self.initEmbeddings = False
-        self.embeddingSize = 56
+        self.embeddingSize = 75
         self.embeddingSource = "GoogleNews-vectors-negative300.bin"
         
         # training options
-        self.numEpochs = 2
-        self.saveEvery = 2000
+        self.numEpochs = 3
+        self.saveEvery = 1000
         self.batchSize = 196
-        self.learningRate = 0.002
+        self.learningRate = 0.001
         self.dropout = 0.9
 
 
@@ -142,7 +141,7 @@ class Chatbot:
         self.sess = None
 
         # Filename and directories constants
-        self.MODEL_DIR_BASE = 'save2' + os.sep + 'model'
+        self.MODEL_DIR_BASE = 'save4' + os.sep + 'model'
         self.MODEL_NAME_BASE = 'model'
         self.MODEL_EXT = '.ckpt'
         self.CONFIG_FILENAME = 'params.ini'
@@ -196,11 +195,13 @@ class Chatbot:
         if self.args.createDataset:
             print('Dataset created! Thanks for using this program')
             return  # No need to go further
+        
+        # only create the model if we need to, to avoid errors
+        if self.model is None:
+            # Prepare the model
+            with tf.device(self.getDevice()):
+                self.model = Model(self.args, self.textData)
 
-        # Prepare the model
-        with tf.device(self.getDevice()):
-            self.model = Model(self.args, self.textData)
-    
     def main(self, pargs=None):
         """
         Launch the training and/or the interactive mode
@@ -246,7 +247,7 @@ class Chatbot:
             self.mainTrain(self.sess)
 
         if self.args.test != Chatbot.TestMode.DAEMON:
-            self.sess.close()
+#             self.sess.close()
             print("The End! Thanks for using this program")
 
     def mainTrain(self, sess):
@@ -287,7 +288,7 @@ class Chatbot:
                     # Output training status
                     if self.globStep % 100 == 0:
                         perplexity = math.exp(float(loss)) if loss < 300 else float("inf")
-                        tqdm.write("----- Step %d -- Loss %.2f -- Perplexity %.2f" % (self.globStep, loss, perplexity))
+                        tqdm.write("----- Step %d -- Loss %.4f -- Perplexity %.4f" % (self.globStep, loss, perplexity))
 
                     # Checkpoint
                     if self.globStep % self.args.saveEvery == 0:
@@ -612,7 +613,8 @@ class Chatbot:
 
         # For now, not arbitrary  independent maxLength between encoder and decoder
         self.args.maxLengthEnco = self.args.maxLength
-        self.args.maxLengthDeco = self.args.maxLength + 2
+#         self.args.maxLengthDeco = self.args.maxLength + 2
+        self.args.maxLengthDeco = self.args.maxLength + 5
 
         if self.args.watsonMode:
             self.SENTENCES_PREFIX.reverse()
@@ -675,7 +677,7 @@ class Chatbot:
         return modelName + self.MODEL_EXT
 
     def getDevice(self):
-        """ Parse the argument to decide on which device run the model
+        """ Parse the argument to decide on which device run the modelses
         Return:
             str: The name of the device on which run the program
         """
