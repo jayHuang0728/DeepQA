@@ -96,3 +96,5 @@ nvidia-docker-compose.yml
 
 save/
 save*/
+data/
+*.zip
